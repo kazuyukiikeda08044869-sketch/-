@@ -23,9 +23,9 @@ from pathlib import Path
 # ここを書き換えてください
 # ============================================================
 CONFIG = {
-    "FROM_ADDRESS": "your-gmail@gmail.com",   # 送信元 Gmail アドレス
-    "TO_ADDRESS":   "your-phone@example.com", # 送信先（スマホで受け取るアドレス）
-    "APP_PASSWORD":  "xxxx xxxx xxxx xxxx",   # Gmail アプリパスワード（16桁）
+    "FROM_ADDRESS": "kazuyuki.ikeda08044869@gmail.com",   # 送信元 Gmail アドレス
+    "TO_ADDRESS":   "kazuyuki.ikeda08044869@gmail.com", # 送信先（スマホで受け取るアドレス）
+    "APP_PASSWORD":  "thir_4869",   # Gmail アプリパスワード（16桁）
 }
 # ============================================================
 
