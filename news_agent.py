@@ -15,7 +15,8 @@ from pathlib import Path
 
 import anthropic
 
-MODEL = "claude-sonnet-4-6"
+MODEL_SEARCH = "claude-sonnet-4-6"   # Web検索用（Haiku非対応のため）
+MODEL_ANALYZE = "claude-haiku-4-5"  # 分析・整形用（コスト削減）
 OUTPUT_FILE = Path(__file__).parent / "news_picks.json"
 
 SYSTEM_PROMPT = """あなたはERPコンサルタント（会計担当）のX/noteコンテンツ戦略アドバイザーです。
@@ -53,33 +54,44 @@ OUTPUT_FORMAT = """
 """.format(date=datetime.now().strftime('%Y-%m-%d'))
 
 
-def collect_and_analyze(client: anthropic.Anthropic) -> str:
-    """Web検索でニュース収集し分析する"""
-
-    search_prompt = f"""以下の検索クエリで最新の会計・ERP関連ニュースを検索してください：
-
-{chr(10).join(f'- {q}' for q in SEARCH_QUERIES)}
-
-検索で見つかった記事をもとに、X投稿・noteコンテンツのネタになるものを選んで整理してください。
-
-{OUTPUT_FORMAT}"""
-
-    # Web検索ツールを使ってニュース収集
+def collect_news(client: anthropic.Anthropic) -> str:
+    """Step1: Sonnetでニュースを検索・収集（タイトルと要約のみ抽出）"""
     response = client.messages.create(
-        model=MODEL,
-        max_tokens=3000,
-        system=SYSTEM_PROMPT,
+        model=MODEL_SEARCH,
+        max_tokens=1000,  # 低く抑えてコスト削減
+        system="あなたはニュース収集アシスタントです。",
         tools=[{"type": "web_search_20260209", "name": "web_search"}],
-        messages=[{"role": "user", "content": search_prompt}]
+        messages=[{"role": "user", "content": f"""以下のクエリで検索し、見つかった記事のタイトルとURL、1行要約をリスト形式で返してください。分析は不要です。
+
+{chr(10).join(f'- {q}' for q in SEARCH_QUERIES)}"""}]
     )
+    parts = [block.text for block in response.content if block.type == "text"]
+    return "\n".join(parts)
 
-    # テキストブロックを結合して返す
-    result_parts = []
-    for block in response.content:
-        if block.type == "text":
-            result_parts.append(block.text)
 
-    return "\n".join(result_parts) if result_parts else "ニュースの取得に失敗しました。"
+def analyze_news(client: anthropic.Anthropic, raw_news: str) -> str:
+    """Step2: Haikusで収集ニュースを分析・整形（コスト削減）"""
+    response = client.messages.create(
+        model=MODEL_ANALYZE,
+        max_tokens=2000,
+        system=SYSTEM_PROMPT,
+        messages=[{"role": "user", "content": f"""以下のニュース一覧から、X投稿・noteコンテンツのネタになるものを選んで分析してください。
+
+【収集ニュース】
+{raw_news}
+
+{OUTPUT_FORMAT}"""}]
+    )
+    return response.content[0].text
+
+
+def collect_and_analyze(client: anthropic.Anthropic) -> str:
+    """2段階でニュース収集・分析（Sonnet検索→Haiku分析）"""
+    print("  Step1: ニュース検索中（Sonnet）...", flush=True)
+    raw_news = collect_news(client)
+
+    print("  Step2: 分析・整形中（Haiku）...", flush=True)
+    return analyze_news(client, raw_news)
 
 
 def main():
